@@ -1,0 +1,5 @@
+- generating ts client
+- making client UI
+
+- mapping
+- show docs diagrams in relevant places

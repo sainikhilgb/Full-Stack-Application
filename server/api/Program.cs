@@ -1,37 +1,41 @@
+using System.Text.Json;
 using api;
-using efscaffold.Entities;
-using Infrastructure.Postgres.Scaffolding;
-using Microsoft.AspNetCore.Mvc;
+using api.Etc;
+using api.Services;
+using efscaffold;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var appOptions = builder.Services.AddAppOptions(builder.Configuration);
 
-builder.Services.AddDbContext<MyDbContext>(conf => conf.UseNpgsql(appOptions.DbConnectionString));
-
-builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+Console.WriteLine("the app options are: "+JsonSerializer.Serialize(appOptions));
+builder.Services.AddScoped<ITodoService, TodoService>();
+builder.Services.AddDbContext<MyDbContext>(conf =>
 {
-    options.SerializerOptions.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
+    conf.UseNpgsql(appOptions.DbConnectionString);
 });
+
+builder.Services.AddControllers();
+builder.Services.AddOpenApiDocument();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+builder.Services.AddCors();
+
 var app = builder.Build();
 
-app.MapGet("/", ([FromServices] MyDbContext dbContext) =>
-{
-    var todoObject = new Todo()
-    {
-        Id = Guid.NewGuid().ToString(),
-        Title = "New Todo",
-        Description = "Test Todo",
-        Priority = 1,
-        Isdone = false
-    };
-    dbContext.Add(todoObject);
-    dbContext.SaveChanges();
-    var Todo = dbContext.Todos.ToList();
-    return Results.Ok(Todo);
-});
+app.UseExceptionHandler();
 
+app.UseCors(config => config
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowAnyOrigin()
+    .SetIsOriginAllowed(x => true));
 
+app.MapControllers();
 
+app.UseOpenApi();
+app.UseSwaggerUi();
+await app.GenerateApiClientsFromOpenApi("/../../client/src/generated-ts-client.ts");
 app.Run();
